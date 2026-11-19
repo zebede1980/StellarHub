@@ -246,6 +246,11 @@ class Api:
             autopilot.stop()
         except Exception:
             pass
+        try:  # PresentMon is a child process with its own trace session: neither may outlive the app
+            from .engine import games
+            games.stop()
+        except Exception:
+            pass
         self.widget_close()
         if self._tray is not None:
             self._tray.stop()
