@@ -183,6 +183,7 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;'
 const P = {
   home: '<circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="9.5" ry="4" transform="rotate(-22 12 12)"/>',
   monitor: '<path d="M3 12h3.5l2.5-6 4 12 2.5-6H21"/>',
+  gamepad: '<path d="M7.5 7h9a5 5 0 0 1 4.9 4.1l.8 4.4a2.6 2.6 0 0 1-4.6 2.1L15.5 15h-7l-2.1 2.6a2.6 2.6 0 0 1-4.6-2.1l.8-4.4A5 5 0 0 1 7.5 7z"/><path d="M8 9.8v3M6.5 11.3h3M15.5 10h.01M17.5 12h.01"/>',
   drivers: '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/><path d="M12 9v6m-2.5-2.5L12 15l2.5-2.5"/>',
   remover: '<path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13"/><path d="M10 11v5M14 11v5"/>',
   updater: '<path d="M20 11a8 8 0 0 0-14.7-4.4L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.7 4.4L20 16"/><path d="M20 20v-4h-4"/>',
@@ -267,6 +268,8 @@ const MODS0 = [
   { id: 'home', name: 'Home', icon: 'home' },
   { id: 'monitor', name: 'Live Monitor', icon: 'monitor', desc: 'Your PC in real time: usage, temperatures, network, battery and health.',
     tabs: [['overview', 'Overview'], ['cpu', 'Processor'], ['gpu', 'Graphics'], ['memory', 'Memory'], ['disks', 'Disks'], ['network', 'Network'], ['battery', 'Battery'], ['processes', 'Processes'], ['health', 'Health']] },
+  { id: 'games', name: 'Games', icon: 'gamepad', real: true, desc: 'The frame rate of what you play, the slowdowns and what holds it back.',
+    tabs: [['live', 'Live'], ['sessions', 'Sessions']] },
   { id: 'drivers', name: 'Driver Updater', icon: 'drivers', desc: 'Your drivers, new versions from Windows Update and backups.',
     tabs: [['updates', 'Updates'], ['all', 'All drivers'], ['problems', 'Problems'], ['backup', 'Backup'], ['history', 'History']] },
   { id: 'remover', name: 'Program Remover', icon: 'remover', desc: 'Uninstall programs and clear everything they leave behind, with a quarantine to undo.',

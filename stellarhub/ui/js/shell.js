@@ -53,7 +53,7 @@ tickers.add((dt, t) => {
 SH.mouse = mouse; SH.warp = warp;
 
 /* ================= dock ================= */
-const DOCK = ['home', '|', 'monitor', 'drivers', 'remover', 'updater', 'hangar', '|', 'storage', 'optimizer', 'privacy', '|', 'benchmark', 'tester', '|', 'autopilot'];
+const DOCK = ['home', '|', 'monitor', 'games', 'drivers', 'remover', 'updater', 'hangar', '|', 'storage', 'optimizer', 'privacy', '|', 'benchmark', 'tester', '|', 'autopilot'];
 const dock = $('#dock');
 dock.innerHTML = DOCK.map(id => id === '|' ? '<span class="sep"></span>' : (m => `<button class="dk${id === 'home' ? ' on' : ''}" data-go="${id}" aria-label="${m.name}">${ic(m.icon)}<span class="tip">${m.name}</span></button>`)(modById(id))).join('') + '<span class="dot" id="dockDot"></span>';
 const BASE = 52, GROW = .3;
