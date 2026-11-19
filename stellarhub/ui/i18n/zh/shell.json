@@ -353,7 +353,19 @@
   "StellarHub was updated to {v}": "StellarHub 已更新到 {v}",
   "What's new": "新功能",
   "The update to {v} couldn't be installed. You are still on {now}.": "无法安装 {v}。你仍在使用 {now}。",
-  "When the app opens and every few hours. StellarHub always asks before updating.": "在打开应用时以及每隔几小时检查一次。StellarHub 在更新前总会征得你的同意。",
   "This copy runs from the source code: download the new version from GitHub.": "此副本从源代码运行：请从 GitHub 下载新版本。",
-  "Windows did not give permission to install the update.": "Windows 未授予安装更新的权限。"
+  "Windows did not give permission to install the update.": "Windows 未授予安装更新的权限。",
+  "Minor update {v} available": "有小更新 {v} 可用",
+  "New version {v} available": "新版本 {v} 可用",
+  "Small fixes. StellarHub does not interrupt you for these.": "小修复。StellarHub 不会为此打扰你。",
+  "New features and fixes.": "新功能和修复。",
+  "See and update": "查看并更新",
+  "This is the portable version: it does not add itself to Windows startup, so it leaves nothing behind on the PC.": "这是便携版：它不会加入 Windows 启动项，因此不会在电脑上留下任何东西。",
+  "The portable version asks Windows each time it opens, because it leaves no scheduled task on the PC.": "便携版每次打开时都会向 Windows 请求权限，因为它不会在电脑上留下计划任务。",
+  "portable": "便携版",
+  "(portable)": "（便携版）",
+  "When the app opens and every few hours. Only new features (like 1.2.0 or 2.0.0) are announced with a window; small fixes (like 1.2.3) wait here. StellarHub always asks before updating.": "在打开应用时以及每隔几小时检查一次。只有新功能（如 1.2.0 或 2.0.0）会弹窗提示；小修复（如 1.2.3）会在这里等待。StellarHub 在更新前总会征得你的同意。",
+  "StellarHub needs the Microsoft Edge WebView2 Runtime, and this PC doesn't have it. Download it from Microsoft now?": "StellarHub 需要 Microsoft Edge WebView2 Runtime，而这台电脑没有安装。现在从 Microsoft 下载吗？",
+  "Getting to know your PC. The first start takes a little longer.": "正在了解你的电脑。首次启动会稍慢一些。",
+  "Almost there…": "马上就好…"
 }

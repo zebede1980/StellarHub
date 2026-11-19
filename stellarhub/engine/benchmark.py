@@ -40,7 +40,8 @@ from ..i18n import tr
 EXPORTS = {"info", "drives", "history", "save_run", "delete_run", "clear_history", "score_gpu", "overall"}
 JOBS = {"cpu", "memory", "disk", "network", "stress_cpu"}
 
-DATA_DIR = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "StellarHub")
+from .. import paths as _paths
+DATA_DIR = _paths.data_dir()
 HISTORY = os.path.join(DATA_DIR, "benchmarks.json")
 MAX_RUNS = 300
 TMP_PREFIX = "StellarHub-bench-"

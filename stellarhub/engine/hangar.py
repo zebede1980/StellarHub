@@ -50,7 +50,8 @@ def _data_dir():
         app = sys.modules.get("stellarhub.app")
         sp = getattr(app, "SETTINGS", None) if app is not None else None
         if not sp:
-            sp = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "StellarHub", "settings.json")
+            from .. import paths
+            sp = paths.settings_file()
         stem = os.path.splitext(os.path.basename(sp))[0]
         d = os.path.join(os.path.dirname(sp), "hangar" if stem == "settings" else stem + "_hangar")
     os.makedirs(d, exist_ok=True)

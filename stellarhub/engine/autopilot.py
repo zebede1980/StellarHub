@@ -73,7 +73,8 @@ def _settings_path():
     app = sys.modules.get("stellarhub.app")
     if app is not None and getattr(app, "SETTINGS", None):
         return app.SETTINGS
-    return os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "StellarHub", "settings.json")
+    from .. import paths
+    return paths.settings_file()
 
 
 def _data_dir():

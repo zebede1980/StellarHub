@@ -151,3 +151,85 @@ class AfterUpdate(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Portable(unittest.TestCase):
+    """The portable version updates with the .zip of the release and replaces its own files."""
+
+    def test_pick_takes_the_zip_in_the_portable_version(self):
+        base = "https://github.com/x/y/releases/download/v0.6.0"
+        rel = release("0.6.0", base)
+        rel["assets"] += [{"name": "StellarHub-Portable-0.6.0.zip", "size": 9, "browser_download_url": base + "/StellarHub-Portable-0.6.0.zip"},
+                          {"name": "StellarHub-Portable-0.6.0.zip.sha256", "size": 90, "browser_download_url": base + "/StellarHub-Portable-0.6.0.zip.sha256"}]
+        self.assertTrue(su.pick(rel, portable=True)["setup"]["url"].endswith(".zip"))
+        self.assertTrue(su.pick(rel, portable=False)["setup"]["url"].endswith(".exe"))
+        self.assertIsNone(su.pick(release("0.6.0", base), portable=True))  # an old release without the .zip
+
+    def test_unpack_refuses_paths_outside_and_needs_the_exe(self):
+        import zipfile
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        good = os.path.join(tmp, "good.zip")
+        with zipfile.ZipFile(good, "w") as z:
+            z.writestr("StellarHub/StellarHub.exe", b"x")
+            z.writestr("StellarHub/_internal/a.dll", b"y")
+        base = su.unpack_portable(good, os.path.join(tmp, "out"))
+        self.assertTrue(os.path.isfile(os.path.join(base, "StellarHub.exe")))
+        evil = os.path.join(tmp, "evil.zip")
+        with zipfile.ZipFile(evil, "w") as z:
+            z.writestr("../escape.txt", b"no")
+            z.writestr("StellarHub.exe", b"x")
+        with self.assertRaises(ValueError):
+            su.unpack_portable(evil, os.path.join(tmp, "out2"))
+        self.assertFalse(os.path.exists(os.path.join(tmp, "escape.txt")))
+        empty = os.path.join(tmp, "empty.zip")
+        with zipfile.ZipFile(empty, "w") as z:
+            z.writestr("readme.txt", b"x")
+        with self.assertRaises(ValueError):
+            su.unpack_portable(empty, os.path.join(tmp, "out3"))
+
+
+class PortablePaths(unittest.TestCase):
+    def test_data_next_to_the_program(self):
+        from stellarhub import paths
+        with mock.patch.object(paths, "PORTABLE", True), mock.patch.dict(os.environ, {"STELLARHUB_PORTABLE_DATA": r"E:\StellarHub\Data"}):
+            self.assertEqual(paths.data_dir(), r"E:\StellarHub\Data")
+            self.assertEqual(paths.settings_file(), r"E:\StellarHub\Data\settings.json")
+            self.assertTrue(paths.local_dir().startswith(r"E:\StellarHub\Data"))
+
+
+class PortableFinish(unittest.TestCase):
+    """The new portable copy (in the update folder) copies itself over the old one and keeps the Data folder."""
+
+    def test_new_copy_replaces_program_files_and_keeps_data(self):
+        root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, root, True)
+        dst = os.path.join(root, "StellarHub")
+        src = os.path.join(dst, "update", "new", "StellarHub")
+        for d in (os.path.join(dst, "_internal"), os.path.join(dst, "Data"), os.path.join(src, "_internal")):
+            os.makedirs(d)
+        files = {os.path.join(dst, "StellarHub.exe"): "old exe", os.path.join(dst, "_internal", "old.dll"): "old",
+                 os.path.join(dst, "Data", "settings.json"): "{}", os.path.join(src, "StellarHub.exe"): "new exe",
+                 os.path.join(src, "_internal", "new.dll"): "new", os.path.join(src, "StellarHub.portable"): "m"}
+        for f, c in files.items():
+            with open(f, "w") as fh:
+                fh.write(c)
+        with mock.patch.object(su, "install_dir", lambda: src), mock.patch.object(su.subprocess, "Popen") as popen:
+            self.assertEqual(su.finish_update(dst, "999999"), 0)
+        self.assertEqual(open(os.path.join(dst, "StellarHub.exe")).read(), "new exe")
+        self.assertEqual(os.listdir(os.path.join(dst, "_internal")), ["new.dll"])
+        self.assertEqual(open(os.path.join(dst, "Data", "settings.json")).read(), "{}")
+        self.assertFalse([n for n in os.listdir(dst) if n.endswith(".old")])
+        with open(os.path.join(dst, "update", "state.json")) as fh:
+            self.assertEqual(json.load(fh)["st"], "done")
+        self.assertEqual(popen.call_args[0][0], [os.path.join(os.path.realpath(dst), "StellarHub.exe")])
+
+    def test_refuses_a_copy_that_is_not_inside_the_update_folder(self):
+        root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, root, True)
+        dst = os.path.join(root, "StellarHub")
+        os.makedirs(dst)
+        open(os.path.join(dst, "StellarHub.exe"), "w").close()
+        with mock.patch.object(su, "install_dir", lambda: os.path.join(root, "elsewhere")), mock.patch.object(su.subprocess, "Popen") as popen:
+            self.assertEqual(su.finish_update(dst, "1"), 2)
+        popen.assert_not_called()

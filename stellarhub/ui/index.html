@@ -5,6 +5,23 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>StellarHub</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='3.2' fill='%23FF7A66'/%3E%3Cellipse cx='12' cy='12' rx='10' ry='4' transform='rotate(-24 12 12)' fill='none' stroke='%239ED6FF' stroke-width='1.4'/%3E%3C/svg%3E">
+<style>
+/* loading screen: on the very first paint, before the stylesheets and scripts, gone once the app is ready (shell.js) */
+#boot{position:fixed;inset:0;z-index:200;display:grid;place-items:center;background:radial-gradient(600px 360px at 50% 46%,rgba(158,214,255,.07),transparent 70%),#060A14;color:#E8EEF8;font:400 13px/1.4 system-ui,"Segoe UI",sans-serif;transition:opacity .45s ease}
+#boot.out{opacity:0;pointer-events:none}
+#boot .bt{display:flex;flex-direction:column;align-items:center;gap:18px}
+#boot svg{width:84px;height:84px;overflow:visible;filter:drop-shadow(0 0 22px rgba(255,122,102,.28))}
+#boot .moon{transform-origin:12px 12.6px;animation:btOrbit 2.6s linear infinite}
+#boot .planet{transform-origin:12px 12.6px;animation:btBreath 2.6s ease-in-out infinite}
+#boot b{font:600 19px/1 system-ui,"Segoe UI",sans-serif;letter-spacing:-.01em}
+#boot .bar{position:relative;width:150px;height:3px;border-radius:2px;background:rgba(232,238,248,.08);overflow:hidden}
+#boot .bar i{position:absolute;top:0;bottom:0;width:38%;border-radius:2px;background:linear-gradient(90deg,#9ED6FF,#FF7A66);animation:btBar 1.3s ease-in-out infinite}
+#boot .msg{min-height:18px;max-width:320px;text-align:center;color:rgba(232,238,248,.55);font-size:12.5px;transition:opacity .3s}
+@keyframes btOrbit{to{transform:rotate(360deg)}}
+@keyframes btBreath{50%{transform:scale(1.06)}}
+@keyframes btBar{from{left:-38%}to{left:100%}}
+@media (prefers-reduced-motion:reduce){#boot .moon,#boot .planet{animation:none}#boot .bar i{animation:none;left:0;width:100%;opacity:.5}}
+</style>
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/home.css">
 <link rel="stylesheet" href="css/sheet.css">
@@ -25,6 +42,9 @@
 <link rel="stylesheet" href="css/selfupdate.css">
 </head>
 <body>
+<div id="boot" aria-busy="true"><div class="bt">
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M1.8 12.6A10.2 3 0 0 1 22.2 12.6" transform="rotate(-20 12 12.6)" stroke="#9ED6FF" stroke-opacity=".5" stroke-width="1.1"/><circle class="planet" cx="12" cy="12.6" r="5.2" fill="#FF7A66"/><path d="M22.2 12.6A10.2 3 0 0 1 1.8 12.6" transform="rotate(-20 12 12.6)" stroke="#9ED6FF" stroke-width="1.1"/><circle class="moon" cx="19.6" cy="4.4" r="1.4" fill="#9ED6FF"/></svg>
+  <b>StellarHub</b><div class="bar"><i></i></div><div class="msg" id="bootMsg"></div></div></div>
 <div class="rz" data-edge="n"></div><div class="rz" data-edge="s"></div><div class="rz" data-edge="w"></div><div class="rz" data-edge="e"></div>
 <div class="rz" data-edge="nw"></div><div class="rz" data-edge="ne"></div><div class="rz" data-edge="sw"></div><div class="rz" data-edge="se"></div>
 <div class="atmo"></div>

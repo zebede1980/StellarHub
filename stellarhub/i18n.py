@@ -74,7 +74,8 @@ def _init_from_settings():
     if os.environ.get("STELLARHUB_LANG"):  # tests and diagnostics pin it
         set_language(os.environ["STELLARHUB_LANG"])
         return
-    path = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "StellarHub", "settings.json")
+    from . import paths
+    path = paths.settings_file()
     try:
         with open(path, encoding="utf-8") as fh:
             pref = json.load(fh).get("language")

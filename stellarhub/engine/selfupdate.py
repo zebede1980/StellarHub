@@ -15,6 +15,12 @@ How an update runs (the same steps for every kind of install):
      file of the install folder is in use. The installer writes "done" (or "failed") to state.json when it ends;
      the helper sees it and opens StellarHub again, which then says it was updated.
 
+The portable version (stellarhub/paths.py) takes the release's StellarHub-Portable-X.zip instead: the updater
+unpacks it into <program>/update/new and says "ready"; the app closes and starts the NEW copy with --finish-update,
+which waits for the old one to be gone, copies its own files over it (never the Data folder) and opens it. No script
+replaces the program behind the user's back: an earlier version did that with a hidden PowerShell, and Kaspersky
+flagged it as malware (PDM:Trojan.Win32.Generic), which is why it works this way.
+
 The elevated updater never takes instructions from the user's side: it asks GitHub itself, only for this
 repository, only for a newer version, and only runs a file whose hash matches. The one thing it reads from the
 user's profile is a "cancel" flag.
@@ -38,6 +44,7 @@ REPO = None  # fork: upstream releases would overwrite local changes; set to "ow
 API = f"https://api.github.com/repos/{REPO}/releases/latest" if REPO else None
 TASK = r"StellarHub\Update"
 ASSET_RE = re.compile(r"^StellarHub-Setup-(\d+(?:\.\d+){1,3})\.exe$", re.I)
+PORTABLE_RE = re.compile(r"^StellarHub-Portable-(\d+(?:\.\d+){1,3})\.zip$", re.I)
 NO_WINDOW = 0x08000000
 DETACHED = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
 NEW_GROUP, BREAKAWAY = 0x00000200, 0x01000000  # CREATE_NEW_PROCESS_GROUP, CREATE_BREAKAWAY_FROM_JOB
@@ -46,7 +53,8 @@ FROZEN = bool(getattr(sys, "frozen", False))
 
 # ---------------------------------------------------------------- places
 def _data_dir():
-    return os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "StellarHub")
+    from .. import paths
+    return paths.data_dir()
 
 
 def install_dir():
@@ -63,7 +71,8 @@ def state_path():
 
 
 def _cancel_flag():
-    return os.path.join(os.environ.get("LOCALAPPDATA") or _data_dir(), "StellarHub", "update.cancel")
+    from .. import paths
+    return os.path.join(paths.local_dir(), "update.cancel")
 
 
 def _pending_path():
@@ -118,18 +127,26 @@ def _latest():
     return json.loads(_get(url, 2 * 1024 * 1024).decode("utf-8"))
 
 
-def pick(rel):
+def _portable():
+    from .. import paths
+    return paths.PORTABLE
+
+
+def pick(rel, portable=None):
     """From a GitHub release: {ver, setup: {name, url, size}, sha_url, notes, url, date}, or None when the release
-    has no installer for its own version (or is a draft or a pre-release)."""
+    has no file for this copy for its own version (or is a draft or a pre-release). "setup" is the file this copy
+    updates with: the installer, or the .zip in the portable version."""
     if not isinstance(rel, dict) or rel.get("draft") or rel.get("prerelease"):
         return None
     ver = str(rel.get("tag_name") or "").lstrip("vV")
     if not parse_version(ver):
         return None
+    portable = _portable() if portable is None else portable
+    pattern = PORTABLE_RE if portable else ASSET_RE
     assets = {str(a.get("name") or ""): a for a in rel.get("assets") or [] if isinstance(a, dict)}
     setup = None
     for name, a in assets.items():
-        m = ASSET_RE.match(name)
+        m = pattern.match(name)
         if m and parse_version(m.group(1)) == parse_version(ver):
             setup = a
             break
@@ -150,6 +167,8 @@ def mode():
     or it already has them), task (Program Files, through the scheduled task) or uac (Program Files, Windows asks)."""
     if not FROZEN:
         return "source"
+    if _portable():
+        return "portable"  # replaces its own files where it is (a USB drive): no installer, no rights needed
     if not per_machine() or _admin():
         return "direct"
     return "task" if _task_exists() else "uac"
@@ -164,6 +183,16 @@ def check(force=False):
         out.update(ok=False, error=str(e)[:200])
         return out
     if not info:
+        # a newer release without a file for this kind of copy (e.g. no portable .zip): offer its page instead
+        try:
+            rel = _latest()
+            any_ver = str(rel.get("tag_name") or "").lstrip("vV")
+            if newer(any_ver, VERSION):
+                out.update(ok=True, newer=True, latest=any_ver, notes=str(rel.get("body") or "")[:20000],
+                           url=str(rel.get("html_url") or ""), date=str(rel.get("published_at") or ""), mode="page")
+                return out
+        except Exception:
+            pass
         out.update(ok=True, newer=False)
         return out
     out.update(ok=True, newer=newer(info["ver"], VERSION), latest=info["ver"], notes=info["notes"], url=info["url"],
@@ -207,7 +236,7 @@ def start():
     at = time.time()
     exe = sys.executable
     try:
-        if m == "direct":
+        if m in ("direct", "portable"):
             subprocess.Popen([exe, "--self-update"], creationflags=DETACHED | NO_WINDOW, close_fds=True, cwd=install_dir())
         elif m == "task":
             r = subprocess.run(["schtasks", "/run", "/tn", TASK], capture_output=True, creationflags=NO_WINDOW, timeout=20)
@@ -231,6 +260,12 @@ def finish(to, route=None):
             json.dump(note, fh)
     except OSError:
         pass
+    new = _new_copy() if _portable() else None
+    if new:
+        # the new copy waits for this one to close, copies itself over it and opens it
+        subprocess.Popen([os.path.join(new, "StellarHub.exe"), "--finish-update", install_dir(), str(os.getpid())],
+                         cwd=new, close_fds=True, creationflags=NEW_GROUP)
+        return True
     spawn_reopener()
     return True
 
@@ -367,7 +402,7 @@ def run_updater():
     try:
         os.makedirs(d, exist_ok=True)
         for f in os.listdir(d):  # what an earlier update left behind
-            if f.lower().endswith((".exe", ".part", ".log")):
+            if f.lower().endswith((".exe", ".part", ".log", ".zip")):
                 try:
                     os.remove(os.path.join(d, f))
                 except OSError:
@@ -377,7 +412,7 @@ def run_updater():
     if not FROZEN:
         _write_state(st="failed", why="source")
         return 2
-    if per_machine() and not _admin():
+    if per_machine() and not _admin() and not _portable():
         _write_state(st="failed", why="admin")
         return 3
     try:
@@ -403,6 +438,15 @@ def run_updater():
             return 4
         exe = os.path.join(d, setup["name"])
         os.replace(part, exe)
+        portable = _portable()
+        if portable:
+            try:
+                new = unpack_portable(exe, os.path.join(d, "new"))
+            finally:
+                _rm(exe)
+        if portable:
+            _write_state(st="ready", ver=ver, new=new)
+            return 0  # the app closes and the new copy finishes the update itself (see finish and finish_update)
         _write_state(st="ready", ver=ver)
         end = time.monotonic() + 600  # the app closes as soon as it sees "ready"
         while _app_running():
@@ -421,6 +465,121 @@ def run_updater():
     except Exception as e:
         _write_state(st="failed", why="error", error=str(e)[:200])
         return 5
+
+
+def unpack_portable(zip_path, dest):
+    """Unpacks the portable .zip into dest and returns the folder that holds StellarHub.exe. Refuses anything that
+    would land outside dest, and a .zip without StellarHub.exe."""
+    import shutil
+    import zipfile
+    shutil.rmtree(dest, ignore_errors=True)
+    os.makedirs(dest)
+    root = os.path.realpath(dest)
+    with zipfile.ZipFile(zip_path) as z:
+        for n in z.namelist():
+            target = os.path.realpath(os.path.join(dest, n))
+            if not (target == root or target.startswith(root + os.sep)):
+                raise ValueError("unsafe path in the update: " + n)
+        z.extractall(dest)
+    for base in (dest, *[os.path.join(dest, x) for x in os.listdir(dest)]):
+        if os.path.isfile(os.path.join(base, "StellarHub.exe")):
+            return base
+    raise ValueError("the update has no StellarHub.exe")
+
+
+def _new_copy():
+    """Where the updater unpacked the new portable copy (only inside this copy's update folder)."""
+    new = state().get("new") or ""
+    d = os.path.realpath(update_dir())
+    if new and os.path.realpath(new).startswith(d + os.sep) and os.path.isfile(os.path.join(new, "StellarHub.exe")):
+        return new
+    return None
+
+
+def finish_update(dst, pid):
+    """--finish-update <dst> <pid>, run by the NEW portable copy (unpacked in <dst>/update/new): waits for the old
+    StellarHub to close, copies its own program files over the old ones (the Data folder with the settings and the
+    update folder are left alone; the old files come back if something fails), then opens the updated StellarHub.
+    No script and no hidden process: the updated program installs itself, as installers do."""
+    import shutil
+    src = install_dir()
+    dst = os.path.realpath(dst)
+    state_file = os.path.join(dst, "update", "state.json")
+    exe = os.path.join(dst, "StellarHub.exe")
+
+    def report(**kw):
+        kw["ts"] = time.time()
+        try:
+            with open(state_file, "w", encoding="utf-8") as fh:
+                json.dump(kw, fh)
+        except OSError:
+            pass
+    if not os.path.isfile(exe) or not os.path.realpath(src).startswith(dst + os.sep):
+        return 2  # only ever from <dst>\update\...
+    try:
+        import psutil
+        psutil.Process(int(pid)).wait(timeout=60)
+    except Exception:
+        pass
+    end = time.monotonic() + 30
+    while time.monotonic() < end:
+        try:
+            with open(exe, "r+b"):
+                break  # nobody holds the old program any more
+        except OSError:
+            time.sleep(.3)
+    moved = []
+    try:
+        for name in os.listdir(src):
+            if name.lower() in ("data", "update"):
+                continue
+            target = os.path.join(dst, name)
+            if os.path.exists(target):
+                old = target + ".old"
+                if os.path.isdir(old):
+                    shutil.rmtree(old, ignore_errors=True)
+                elif os.path.exists(old):
+                    os.remove(old)
+                os.replace(target, old)
+                moved.append((target, old))
+            if os.path.isdir(os.path.join(src, name)):
+                shutil.copytree(os.path.join(src, name), target)
+            else:
+                shutil.copy2(os.path.join(src, name), target)
+    except Exception as e:
+        for target, old in reversed(moved):  # put the old version back
+            try:
+                if os.path.isdir(target):
+                    shutil.rmtree(target, ignore_errors=True)
+                elif os.path.exists(target):
+                    os.remove(target)
+                os.replace(old, target)
+            except OSError:
+                pass
+        report(st="failed", why="apply", error=str(e)[:200])
+        subprocess.Popen([exe], cwd=dst, close_fds=True)
+        return 5
+    for _target, old in moved:
+        if os.path.isdir(old):
+            shutil.rmtree(old, ignore_errors=True)
+        else:
+            try:
+                os.remove(old)
+            except OSError:
+                pass
+    report(st="done", ver=VERSION)
+    subprocess.Popen([exe], cwd=dst, close_fds=True)
+    return 0
+
+
+def cleanup_after_update():
+    """On start: remove what a finished portable update left (the unpacked copy can't delete itself)."""
+    import shutil
+    d = update_dir()
+    new = os.path.join(d, "new")
+    if os.path.isdir(new) and state().get("st") in ("done", "failed", "cancelled", "uptodate"):
+        time.sleep(4)  # the copy that finished the update is still closing
+        shutil.rmtree(new, ignore_errors=True)
 
 
 def _rm(p):

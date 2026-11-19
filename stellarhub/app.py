@@ -9,6 +9,7 @@ import threading
 import time
 
 from . import VERSION
+from . import paths
 from .i18n import tr
 
 APP_ID = "StellarHub.App"
@@ -20,8 +21,9 @@ def base_dir():
 
 
 UI_DIR = os.path.join(base_dir(), "stellarhub", "ui")
-DATA_DIR = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "StellarHub")
-WEB_DIR = os.path.join(os.environ.get("LOCALAPPDATA") or DATA_DIR, "StellarHub", "webview")
+PORTABLE = paths.PORTABLE  # the portable version keeps everything in a Data folder next to the program
+DATA_DIR = paths.data_dir()
+WEB_DIR = os.path.join(paths.local_dir(), "webview")
 # STELLARHUB_ISOLATED=1: a test copy that runs next to the user's (own lock, ports and browser profile)
 ISOLATED = os.environ.get("STELLARHUB_ISOLATED") == "1"
 if ISOLATED:
@@ -37,7 +39,7 @@ def _migrate_store_python_data():
     """Python from the Microsoft Store keeps %APPDATA% in a private copy (LocalCache, Roaming). When the
     installed StellarHub.exe starts for the first time and the real folder has no settings, it brings over
     the settings and the Autopilot log a source run left there, so nothing is lost when switching."""
-    if os.path.exists(SETTINGS):
+    if os.path.exists(SETTINGS) or PORTABLE:
         return
     pkgs = os.path.join(os.environ.get("LOCALAPPDATA") or "", "Packages")
     try:
@@ -106,7 +108,7 @@ class Api:
 
     # ---------- information ----------
     def info(self):
-        return {"version": VERSION, "admin": is_admin()}
+        return {"version": VERSION, "admin": is_admin(), "portable": PORTABLE}
 
     def ui_ready(self):
         """The interface finished its first frame: logs how long the start took, from the process launch."""
@@ -281,6 +283,8 @@ class Api:
 
     def set_autostart(self, on):
         """Open with Windows (minimized to the tray): an entry in HKCU\\...\\Run."""
+        if PORTABLE and on:
+            return False  # a USB drive is not always there: the portable version doesn't add itself to startup
         import winreg
         key = r"Software\Microsoft\Windows\CurrentVersion\Run"
         try:
@@ -885,6 +889,8 @@ def _launch_cmd(extra=""):
 
 def _ensure_admin_task():
     """Creates (or updates) the scheduled task that opens StellarHub elevated without the UAC prompt."""
+    if PORTABLE:
+        return False  # the portable version asks Windows each time instead of leaving a task on the PC
     import subprocess
     exe, args = _launch_cmd("--from-task")
     task_cmd = f'"{exe}" {args}'
@@ -915,7 +921,7 @@ def _elevate_on_start():
     except (OSError, ValueError):
         return False
     import subprocess
-    if _task_opens_this_copy(ADMIN_TASK) and subprocess.run(
+    if not PORTABLE and _task_opens_this_copy(ADMIN_TASK) and subprocess.run(
             ["schtasks", "/run", "/tn", ADMIN_TASK], capture_output=True, creationflags=0x08000000).returncode == 0:
         return True
     # no task, or it opens another copy (e.g. the source version before installing): ask Windows once;
@@ -957,7 +963,7 @@ def _autostart_cmd():
 
 def _sync_launch_entries():
     """After installing (or moving) StellarHub, the "open with Windows" entry must open this copy."""
-    if not _read_settings().get("startWithWindows"):
+    if PORTABLE or not _read_settings().get("startWithWindows"):
         return
     import winreg
     try:
@@ -1085,6 +1091,32 @@ def _uninstall_cleanup():
                 winreg.DeleteValue(k, "StellarHub")
     except OSError:
         pass
+
+
+_WV2 = r"Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+
+
+def _webview2_present():
+    """Microsoft's documented check for the WebView2 runtime. The installer adds it when missing; the portable
+    version can't, so it says what to do instead of failing without a word."""
+    import winreg
+    for hive, key in ((winreg.HKEY_LOCAL_MACHINE, "SOFTWARE\\WOW6432Node\\" + _WV2), (winreg.HKEY_LOCAL_MACHINE, "SOFTWARE\\" + _WV2),
+                      (winreg.HKEY_CURRENT_USER, "SOFTWARE\\" + _WV2)):
+        try:
+            with winreg.OpenKey(hive, key) as k:
+                v = winreg.QueryValueEx(k, "pv")[0]
+                if v and v != "0.0.0.0":
+                    return True
+        except OSError:
+            continue
+    return False
+
+
+def _no_webview2():
+    msg = tr("StellarHub needs the Microsoft Edge WebView2 Runtime, and this PC doesn't have it. Download it from Microsoft now?")
+    if ctypes.windll.user32.MessageBoxW(None, msg, "StellarHub", 0x04 | 0x30) == 6:  # Yes/No with a warning icon; IDYES
+        import webbrowser
+        webbrowser.open("https://go.microsoft.com/fwlink/p/?LinkId=2124703")
 
 
 UI_PORT = 47822  # the interface's local web server. pywebview's default (42001) is shared by every pywebview app
@@ -1225,6 +1257,10 @@ def main():
         _log_to_file()
         from .engine import selfupdate
         return selfupdate.run_updater()
+    if "--finish-update" in sys.argv:  # a new portable copy putting itself in place (engine/selfupdate.py)
+        from .engine import selfupdate
+        i = sys.argv.index("--finish-update")
+        return selfupdate.finish_update(sys.argv[i + 1], sys.argv[i + 2] if len(sys.argv) > i + 2 else "0")
     if "--update-task" in sys.argv:  # the installer, as administrator
         from .engine import selfupdate
         on = sys.argv[sys.argv.index("--update-task") + 1:][:1] == ["on"]
@@ -1244,6 +1280,9 @@ def main():
         return
     if not ISOLATED:  # a test copy never takes over the user's "open with Windows" entry or administrator task
         threading.Thread(target=_sync_launch_entries, daemon=True).start()
+    if PORTABLE:
+        from .engine import selfupdate
+        threading.Thread(target=selfupdate.cleanup_after_update, daemon=True).start()
     if is_admin() and not ISOLATED:
         try:
             with open(SETTINGS, encoding="utf-8") as fh:
@@ -1255,6 +1294,9 @@ def main():
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_ID)
     except Exception:
         pass
+    if not _webview2_present():
+        _no_webview2()
+        return
     import webview
 
     api = Api()

@@ -63,6 +63,8 @@ jobs:
           path: |
             dist/StellarHub-Setup-*.exe
             dist/StellarHub-Setup-*.exe.sha256
+            dist/StellarHub-Portable-*.zip
+            dist/StellarHub-Portable-*.zip.sha256
           if-no-files-found: error
           retention-days: 30
 

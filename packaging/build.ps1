@@ -3,7 +3,7 @@
 
       powershell -ExecutionPolicy Bypass -File packaging\build.ps1
 
-  Result: dist\StellarHub-Setup-<version>.exe
+  Result: dist\StellarHub-Setup-<version>.exe and dist\StellarHub-Portable-<version>.zip (each with its .sha256)
   Needs Python 3.12+ and Inno Setup 6.6+ (winget install JRSoftware.InnoSetup). Nothing is installed system-wide:
   the Python packages go into .buildenv, with the exact versions below.
 #>
@@ -56,6 +56,10 @@ $iscc = @($env:STELLARHUB_ISCC, "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.ex
           "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
 if (-not $iscc) { throw "Inno Setup not found: winget install JRSoftware.InnoSetup" }
 Step "installer" $iscc @("/Q", "/DAppVersion=$version", "packaging\StellarHub.iss")
+
+# 6. the portable version: the same program in a .zip, with the marker that keeps its data next to it
+Step "portable" $py @("packaging\make_portable.py")
+Get-Content "build\logs\portable.log" -Tail 2
 
 $out = Get-Item "dist\StellarHub-Setup-$version.exe"
 $hash = (Get-FileHash $out -Algorithm SHA256).Hash

@@ -353,7 +353,19 @@
   "StellarHub was updated to {v}": "StellarHub a été mis à jour en {v}",
   "What's new": "Nouveautés",
   "The update to {v} couldn't be installed. You are still on {now}.": "La {v} n'a pas pu être installée. Vous êtes toujours en {now}.",
-  "When the app opens and every few hours. StellarHub always asks before updating.": "À l'ouverture de l'app et toutes les quelques heures. StellarHub demande toujours avant de mettre à jour.",
   "This copy runs from the source code: download the new version from GitHub.": "Cette copie s'exécute depuis le code source : téléchargez la nouvelle version sur GitHub.",
-  "Windows did not give permission to install the update.": "Windows n'a pas autorisé l'installation de la mise à jour."
+  "Windows did not give permission to install the update.": "Windows n'a pas autorisé l'installation de la mise à jour.",
+  "Minor update {v} available": "Mise à jour mineure {v} disponible",
+  "New version {v} available": "Nouvelle version {v} disponible",
+  "Small fixes. StellarHub does not interrupt you for these.": "Petites corrections. StellarHub ne vous dérange pas pour celles-ci.",
+  "New features and fixes.": "Nouvelles fonctions et corrections.",
+  "See and update": "Voir et mettre à jour",
+  "This is the portable version: it does not add itself to Windows startup, so it leaves nothing behind on the PC.": "C'est la version portable : elle ne s'ajoute pas au démarrage de Windows et ne laisse donc rien sur le PC.",
+  "The portable version asks Windows each time it opens, because it leaves no scheduled task on the PC.": "La version portable demande l'autorisation à Windows à chaque ouverture, car elle ne laisse aucune tâche planifiée sur le PC.",
+  "portable": "portable",
+  "(portable)": "(portable)",
+  "When the app opens and every few hours. Only new features (like 1.2.0 or 2.0.0) are announced with a window; small fixes (like 1.2.3) wait here. StellarHub always asks before updating.": "À l'ouverture de l'app et toutes les quelques heures. Seules les nouvelles fonctions (comme 1.2.0 ou 2.0.0) sont annoncées par une fenêtre ; les petites corrections (comme 1.2.3) attendent ici. StellarHub demande toujours avant de mettre à jour.",
+  "StellarHub needs the Microsoft Edge WebView2 Runtime, and this PC doesn't have it. Download it from Microsoft now?": "StellarHub a besoin de Microsoft Edge WebView2 Runtime et ce PC ne l'a pas. Le télécharger maintenant depuis Microsoft ?",
+  "Getting to know your PC. The first start takes a little longer.": "Découverte de votre PC. Le premier démarrage prend un peu plus de temps.",
+  "Almost there…": "Presque prêt…"
 }

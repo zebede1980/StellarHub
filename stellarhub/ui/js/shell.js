@@ -392,7 +392,7 @@ function sectionHTML(id) {
     }
     case 'general': return `<h3>${t('General')}</h3><p>${t('How the app behaves.')}</p>
       <div class="set"><div class="lbl"><div>${t('Language')}<span>${t('The whole app, the widget and the tray menu.')}</span></div></div>${langPicker()}</div>
-      ${tog('startWithWindows', t('Open when Windows starts'), t('Starts hidden in the tray, with no window.'))}
+      ${state.portable ? `<div class="set-note">${t('This is the portable version: it does not add itself to Windows startup, so it leaves nothing behind on the PC.')}</div>` : tog('startWithWindows', t('Open when Windows starts'), t('Starts hidden in the tray, with no window.'))}
       ${tog('trayOnClose', t('Close to the tray'), t('The X hides the window; StellarHub keeps running in the tray. To quit: right-click the icon > Quit.'))}
       ${tog('sounds', t('Sounds'), t('A soft sound when long tasks finish.'))}
       ${tog('confirmDanger', t('Confirm anything that cannot be undone'), t('Everything else always has an undo button.'))}
@@ -408,13 +408,14 @@ function sectionHTML(id) {
       <div class="keys">${[['Ctrl K', t('Search for a tool or action')], ['Ctrl ,', t('Open settings')], [t('Ctrl 1 to 9'), t('Go to a module')], ['Alt ← / Alt →', t('Back and forward')], [t('Mouse side buttons'), t('Back and forward')], ['Esc', t('Close or go back Home')], [t('Double-click the top bar'), t('Maximize or restore')]].map(([k, d]) => `<div><kbd>${k}</kbd><span>${d}</span></div>`).join('')}</div>`;
     case 'admin': return `<h3>${t('Administrator')}</h3><p>${t('Installing drivers, cleaning system files and repairing Windows need administrator rights. Without them, StellarHub runs in limited mode.')}</p>
       <div class="set inline"><div class="lbl"><div>${t('Status')}<span>${state.admin ? t('StellarHub is running as administrator.') : t('You are in normal mode right now.')}</span></div></div>${state.admin ? `<span class="chip ok">${t('Administrator')}</span>` : `<button class="btn pri" data-act="admin">${t('Turn on')}</button>`}</div>
-      ${tog('alwaysAdmin', t('Always open as administrator'), t('Windows asks once when you turn it on; after that StellarHub opens as administrator without asking (like other tools, it uses a scheduled task).'))}
+      ${tog('alwaysAdmin', t('Always open as administrator'), state.portable ? t('The portable version asks Windows each time it opens, because it leaves no scheduled task on the PC.') : t('Windows asks once when you turn it on; after that StellarHub opens as administrator without asking (like other tools, it uses a scheduled task).'))}
       ${tog('adminHints', t('Suggest administrator mode'), t('A subtle hint when a feature needs it.'))}`;
     case 'updates': return `<h3>${t('Updates')}</h3><p>${t('StellarHub updates itself from its GitHub repository.')}</p>
-      <div class="set inline"><div class="lbl"><div>${t('Installed version')}<span>StellarHub ${state.version}</span></div></div><button class="btn sec" data-act="checkupd">${ic('updater')}${t('Check now')}</button></div>
-      ${tog('autoUpdate', t('Check for updates automatically'), t('When the app opens and every few hours. StellarHub always asks before updating.'))}`;
+      <div class="set inline"><div class="lbl"><div>${t('Installed version')}<span>StellarHub ${state.version}${state.portable ? ' · ' + t('portable') : ''}</span></div></div><button class="btn sec" data-act="checkupd">${ic('updater')}${t('Check now')}</button></div>
+      <div class="upd-state" id="updState"></div>
+      ${tog('autoUpdate', t('Check for updates automatically'), t('When the app opens and every few hours. Only new features (like 1.2.0 or 2.0.0) are announced with a window; small fixes (like 1.2.3) wait here. StellarHub always asks before updating.'))}`;
     case 'about': return `<div class="about-h"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3.2" style="fill:var(--accent)"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(-24 12 12)" style="stroke:var(--accent2)" stroke-width="1.4"/><circle cx="20.2" cy="8.3" r="1.5" style="fill:var(--accent2)"/></svg>
-        <div><h3>StellarHub</h3><p>${t('Version {v}. The control center for your PC.', { v: state.version })}</p></div></div>
+        <div><h3>StellarHub</h3><p>${t('Version {v}. The control center for your PC.', { v: state.version + (state.portable ? ' ' + t('(portable)') : '') })}</p></div></div>
       <div class="set inline"><div class="lbl"><div>${t('Created by')}<span>${t('Esteban Arosemena and Claude')}</span></div></div></div>
       <div class="set inline"><div class="lbl"><div>${t('Source code')}<span>${t('Free software under the GNU GPLv3 license.')} github.com/estebanarosemena/StellarHub</span></div></div><button class="btn sec" data-act="github">${ic('external')}${t('Open in GitHub')}</button></div>
       <div class="set"><div class="lbl"><div>${t('Languages')}<span>${t('How much code there is in each.')}</span></div></div><div id="langs" class="langs"><div class="sk" style="height:10px"></div></div></div>
@@ -440,6 +441,7 @@ function showSection(id, first) {
   $$('.sec > *', body).forEach((el, i) => anim(el, [{ opacity: 0, transform: 'translate3d(14px,0,0)' }, { opacity: 1, transform: 'translate3d(0,0,0)' }], { d: 380, delay: 30 + i * 35, e: EASE.spring }));
   requestAnimationFrame(() => $$('.seg', body).forEach(s => placeSeg(s, true)));
   if (id === 'about') renderLangs();
+  if (id === 'updates' && SH.selfUpdate) SH.selfUpdate.paintSettings($('#updState', body));
   const ext = SH.settingsSections[id]; if (ext && ext.mount) ext.mount($('.sec', body));
 }
 tickers.add(dt => { if (!state.setOpen) return; secInd.step(dt); $('#secInd').style.transform = `translateY(${secInd.v.toFixed(2)}px)`; });
@@ -661,12 +663,26 @@ addEventListener('keydown', e => {
 });
 
 /* ================= startup ================= */
+/* the loading screen (index.html): says what is happening while it waits, and leaves once the app is ready.
+   The first start waits for Windows to describe the hardware (it is saved for the next starts). */
+const bootEl = document.getElementById('boot');
+const bootMsg = text => { const m = document.getElementById('bootMsg'); if (m && m.textContent !== text) m.textContent = text; };
+const bootTimers = [setTimeout(() => bootMsg(SH.t('Starting…')), 1500),
+  setTimeout(() => bootMsg(SH.t('Getting to know your PC. The first start takes a little longer.')), 6000),
+  setTimeout(() => bootMsg(SH.t('Almost there…')), 25000)];
+function bootDone() {
+  bootTimers.forEach(clearTimeout);
+  if (!bootEl || !bootEl.isConnected) return;
+  bootEl.classList.add('out'); bootEl.removeAttribute('aria-busy');
+  setTimeout(() => bootEl.remove(), 500);
+}
+setTimeout(bootDone, 120000);  /* never leave it up for good, whatever happens */
 SH.boot = async () => {
   computeAutoZoom();
   await SH.loadSettings();
   const [info, pc] = await Promise.all([SH.call('info'), SH.call('pc_info')]);
   if (pc && pc.components) { Object.assign(SH.PC, pc); SH.PC.real = true; }
-  if (info) { state.version = info.version; if (info.admin) { state.admin = true; $('#modePill').classList.add('admin'); $('#modeTxt').textContent = SH.t('Administrator mode'); } }
+  if (info) { state.version = info.version; state.portable = !!info.portable; if (info.admin) { state.admin = true; $('#modePill').classList.add('admin'); $('#modeTxt').textContent = SH.t('Administrator mode'); } }
   applyLook(); applyZoom();
   MODS.filter(m => m.id !== 'home').forEach(buildModule);
   SH.on('module:registered', def => { if (def.id !== 'home' && modById(def.id)) buildModule(modById(def.id)); });
@@ -675,6 +691,7 @@ SH.boot = async () => {
   if (!state.admin && S().adminHints) setTimeout(() => showNote(), 4200);
   SH.emit('boot');
   SH.booted = true; requestAnimationFrame(() => SH.call('ui_ready'));  /* startup time goes to the log */
+  bootDone();
   /* after switching language the page reloads: come back to where the user was */
   try { const sec = sessionStorage.getItem('sh.reopenSettings'); if (sec) { sessionStorage.removeItem('sh.reopenSettings'); setTimeout(() => openSettings(sec), 350); } } catch {}
   /* test routes: #drivers/all opens that tab, #drivers/* walks through all of them, #home=bento forces a Home view */

@@ -139,7 +139,16 @@ like any other program. Requires Windows 10 (1809) or 11, 64-bit; if your PC lac
 [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/), the setup downloads it from Microsoft
 (and only runs it if it is signed by Microsoft).
 
-After that, StellarHub keeps itself up to date: it asks when a new version is out.
+After that, StellarHub keeps itself up to date. New features (1.**2**.0, **2**.0.0) are announced with a window;
+small fixes (1.2.**3**) never interrupt you and wait in *Settings > Updates*.
+
+### ◇ Or take it with you (portable)
+
+Download **`StellarHub-Portable-x.y.z.zip`** from the same release and unzip it anywhere, for example a USB drive.
+Run `StellarHub.exe` inside the `StellarHub` folder: no installation. It keeps its settings in a `Data` folder next to
+it, adds nothing to Windows' startup or scheduled tasks, and updates itself in place like the installed version.
+The PC needs the WebView2 Runtime (Windows 11 and up-to-date Windows 10 already have it). What StellarHub backs up
+before changing a PC stays on that PC, so those changes can be undone there.
 
 > The installer is not code-signed yet (see the [code signing policy](#-code-signing-policy)), so Windows
 > SmartScreen may say it is from an "unknown publisher". Each release lists the SHA-256 of the setup file so you
@@ -235,7 +244,7 @@ stellarhub/
 ├─ engine/                 engine: one file per module, plus telemetry, system info and long-running jobs
 │  └─ removal/             leftover scanner, quarantine, cleanup and Windows startup
 └─ ui/                     interface: core, shell, modules, Home views and widget
-packaging/                 build script, PyInstaller recipe and Inno Setup installer
+packaging/                 build script, PyInstaller recipe, Inno Setup installer and the portable .zip
 tests/                     engine tests (they never touch the system)
 docs/                      UI contract and screenshots
 designs/                   the early design explorations
@@ -251,6 +260,7 @@ designs/                   the early design explorations
 - [x] `.exe` installer
 - [x] Six languages
 - [x] Automatic StellarHub updates from this repository
+- [x] Portable version (1.0.0)
 - [ ] Code-signed releases (SignPath Foundation)
 
 ## 🤝 Contributing

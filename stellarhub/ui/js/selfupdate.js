@@ -143,13 +143,21 @@ async function finish(ver) {
 }
 
 /* ---------- checking ---------- */
+/* 'major' (X.0.0), 'minor' (x.Y.0) or 'patch' (x.y.Z): what changed between the installed version and the new one */
+function kindOf(cur, next) {
+  const a = String(cur || '').replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0), b = String(next || '').replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0);
+  return b[0] !== a[0] ? 'major' : b[1] !== a[1] ? 'minor' : 'patch';
+}
+let last = null;
 async function check(manual) {
   let r;
   try { r = await SH.engine('selfupdate', 'check'); } catch (e) { if (manual) SH.toast(e.message); return null; }
   if (r === undefined) { if (manual) SH.toast(t('This only works inside the app.')); return null; }  /* sample mode */
+  last = r; paintSettings();
   if (!r.ok) { if (manual) SH.toast(t("Couldn't reach GitHub. Check your connection and try again.")); return r; }
   if (!r.newer) { if (manual) SH.toast(t('You are on the latest version.')); return r; }
-  if (manual || state.settings.skipVersion !== r.latest) { if (!box) open(r); }
+  /* on its own, StellarHub only interrupts for new features; a small fix waits in Settings > Updates */
+  if (manual || (kindOf(r.current, r.latest) !== 'patch' && state.settings.skipVersion !== r.latest)) { if (!box) open(r); }
   return r;
 }
 async function afterUpdate() {
@@ -160,6 +168,17 @@ async function afterUpdate() {
     if (n.route && n.route !== 'home' && SH.MODS.some(m => m.id === n.route)) setTimeout(() => SH.go(n.route), 500);
   } else SH.toast(t("The update to {v} couldn't be installed. You are still on {now}.", { v: n.to, now: n.now }));
 }
+/* Settings > Updates: what is waiting (a small fix doesn't open the window, so this is where it shows up) */
+let setEl = null;
+function paintSettings(el) {
+  if (el) setEl = el; const box2 = setEl; if (!box2 || !box2.isConnected) return;
+  if (el && !last) { check(false); }
+  const r = last;
+  if (!r || !r.ok || !r.newer) { box2.innerHTML = r && r.ok ? `<div class="upd-ok">${ic('check')}<span>${t('You are on the latest version.')}</span></div>` : ''; return; }
+  const k = kindOf(r.current, r.latest);
+  box2.innerHTML = `<div class="upd-new ${k}">${ic(k === 'patch' ? 'info' : 'sparkle')}<div><b>${k === 'patch' ? t('Minor update {v} available', { v: esc(r.latest) }) : t('New version {v} available', { v: esc(r.latest) })}</b><span>${k === 'patch' ? t('Small fixes. StellarHub does not interrupt you for these.') : t('New features and fixes.')}</span></div><button class="btn pri sm" data-upd-open>${t('See and update')}</button></div>`;
+  $('[data-upd-open]', box2).addEventListener('click', () => open(r));
+}
 SH.on('boot', () => {
   setTimeout(afterUpdate, 900);
   const auto = () => { if (state.settings.autoUpdate !== false) check(false); };
@@ -169,5 +188,5 @@ SH.on('boot', () => {
 /* for screenshots in the browser (sample mode) */
 const demo = () => open({ current: '0.4.0', latest: '0.5.0', date: new Date().toISOString(), size: 20355523, mode: 'task',
   notes: '### ✦ New\n\n- **Updates by themselves**: StellarHub checks GitHub when it opens.\n- A radar in Privacy & Security.\n\n### ⚙ Fixes\n\n- App Hangar no longer waits forever when an installer leaves a process running.\n- The keyboard test no longer reports chatter when you type fast.' });
-SH.selfUpdate = { check, open, demo, progressDemo: () => { demo(); running = true; progressView(); stepTo('download'); bar(.42); $('#suNow', box).textContent = t('Downloading, {got} of {total}', { got: '8.2 MB', total: '19 MB' }); } };
+SH.selfUpdate = { check, open, demo, paintSettings, kindOf, progressDemo: () => { demo(); running = true; progressView(); stepTo('download'); bar(.42); $('#suNow', box).textContent = t('Downloading, {got} of {total}', { got: '8.2 MB', total: '19 MB' }); } };
 })();
