@@ -20,3 +20,6 @@ desktop.ini
 
 # datos locales
 *.log
+
+# third-party programs fetched by hand (PresentMon for engine/games.py)
+tools/
