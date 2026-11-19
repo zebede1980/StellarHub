@@ -453,7 +453,7 @@ function paintPerm(first) {
   const box = $('#pvCaps', permEl);
   if (!has('permissions')) { box.innerHTML = ERR.permissions ? errBox('permissions') : skelRows(6, 'tight'); paintCapDetail(); return; }
   const caps = D.permissions.caps, main = caps.filter(c => c.primary || c.apps.some(a => a.start)), rest = caps.filter(c => !main.includes(c) && c.apps.length);
-  const capRow = c => { const act = c.apps.some(a => a.active); return `<button class="pv-cap${c.id === selCap ? ' on' : ''}${act ? ' live' : ''}" data-cap="${c.id}"><span class="pv-ci">${ic(CAP_IC[c.id] || 'sliders')}${act ? '<i class="pv-pulse"></i>' : ''}</span><span class="pv-ct"><b>${esc(c.name)}</b><span>${esc(act ? t('In use now') : capSub(c))}</span></span>${c.user === 'Deny' ? `<span class="chip">${t('Off')}</span>` : ''}</button>`; };
+  const capRow = c => { const act = c.apps.some(a => a.active); return `<button class="pv-cap${c.id === selCap ? ' on' : ''}${act ? ' live' : ''}" data-cap="${esc(c.id)}"><span class="pv-ci">${ic(CAP_IC[c.id] || 'sliders')}${act ? '<i class="pv-pulse"></i>' : ''}</span><span class="pv-ct"><b>${esc(c.name)}</b><span>${esc(act ? t('In use now') : capSub(c))}</span></span>${c.user === 'Deny' ? `<span class="chip">${t('Off')}</span>` : ''}</button>`; };
   const html = main.map(capRow).join('') + (rest.length ? `<button class="pv-more" id="pvMoreCaps">${showAllCaps ? t('Show less') : t('{n} more with apps', { n: rest.length })}${ic(showAllCaps ? 'chevd' : 'chev')}</button>${showAllCaps ? rest.map(capRow).join('') : ''}` : '');
   if (box.dataset.sig !== html) { const fresh = !box.dataset.sig; box.dataset.sig = html; paintInto(box, html, fresh && !first); }
   if (!caps.some(c => c.id === selCap)) selCap = caps[0] && caps[0].id;

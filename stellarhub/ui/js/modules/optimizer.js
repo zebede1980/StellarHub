@@ -798,7 +798,7 @@ function renderStartup(el) {
       <div class="st-cols"><span>${t('Name')}</span><span>${t('Publisher')}</span><span>${t('Status')}</span><span>${t('Impact')}</span><span>${t('Source')}</span><span></span></div>
       <div class="st-rows" id="stList"></div></div></div>`;
   const list = $('#stList', el);
-  const rowHTML = s => `<div class="st-it${s.on ? '' : ' off'}${open.has(s.id) ? ' open' : ''}" data-id="${s.id}">
+  const rowHTML = s => `<div class="st-it${s.on ? '' : ' off'}${open.has(s.id) ? ' open' : ''}" data-id="${esc(s.id)}">
       <div class="st-r"><span class="st-n">${avatar(s)}<span class="st-nt"><b>${esc(s.name)}${s.count ? ` <em>(${s.count})</em>` : ''}</b>${s.review && s.on ? `<span class="chip warn">${t('check what it is')}</span>` : ''}</span></span>
         <span class="st-pub">${s.pub ? esc(s.pub) : `<span class="faint">${t('no publisher')}</span>`}</span>
         <span><span class="chip${s.on ? ' ok' : ''}">${s.on ? t('Enabled') : t('Disabled')}</span></span>
