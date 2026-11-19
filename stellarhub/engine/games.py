@@ -36,9 +36,11 @@ from ctypes import wintypes
 
 import psutil
 
+from .. import paths
+
 EXPORTS = {"status", "start", "stop", "live", "track", "history", "save_session", "delete_session", "clear_history"}
 
-DATA_DIR = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "StellarHub")
+DATA_DIR = paths.data_dir()
 HISTORY = os.path.join(DATA_DIR, "games.json")
 MAX_SESSIONS = 200
 RELEASES = "https://github.com/GameTechDev/PresentMon/releases"
