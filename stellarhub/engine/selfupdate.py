@@ -34,8 +34,8 @@ from ..i18n import tr
 
 EXPORTS = {"check", "mode", "start", "state", "cancel", "after_update", "finish"}
 
-REPO = "estebanarosemena/StellarHub"
-API = f"https://api.github.com/repos/{REPO}/releases/latest"
+REPO = None  # fork: upstream releases would overwrite local changes; set to "owner/repo" to turn updates back on
+API = f"https://api.github.com/repos/{REPO}/releases/latest" if REPO else None
 TASK = r"StellarHub\Update"
 ASSET_RE = re.compile(r"^StellarHub-Setup-(\d+(?:\.\d+){1,3})\.exe$", re.I)
 NO_WINDOW = 0x08000000
@@ -113,6 +113,8 @@ def _get(url, limit, timeout=15):
 def _latest():
     """The latest release as GitHub describes it (STELLARHUB_UPDATE_URL points elsewhere in tests)."""
     url = os.environ.get("STELLARHUB_UPDATE_URL") or API
+    if not url:
+        return None  # pick(None) is "no release": check() and the updater both report up to date
     return json.loads(_get(url, 2 * 1024 * 1024).decode("utf-8"))
 
 
