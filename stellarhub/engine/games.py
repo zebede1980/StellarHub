@@ -6,6 +6,8 @@ game. It runs as a child process (--output_stdout) and this module turns its CSV
   - hitches: single frames several times longer than the ones around them;
   - dips: several seconds in a row well below the run's usual frame rate;
   - pauses: frames of a second or more (loading screens, alt-tab), listed but kept out of the statistics;
+  - loading: the start of a run, up to the last of a chain of very long frames, as one event and kept out of the
+    statistics, so the stalls of a game starting up are not counted as hitches;
   - what limits the frame rate (graphics card, processor or a frame cap), from how long the GPU was busy in each
     frame plus the telemetry samples taken meanwhile.
 
@@ -57,6 +59,9 @@ HITCH_REFRESH = 30    # frames between two medians
 HITCH_GAP_S = 1.0     # hitches closer than this are one event
 DIP_RATIO = 0.7       # a second below this share of the usual frame rate...
 DIP_MIN_S = 3         # ...for this many seconds in a row, is a dip
+LOAD_MS = 250.0       # at the start of a run, a frame this long (or a pause) is the game still loading...
+LOAD_GAP_S = 30       # ...as long as each one comes within this many seconds of the one before (the first: of the start)
+LOAD_MAX_S = 180      # ...and none of it after this: a game that stalls all evening is not loading all evening
 MAX_EVENTS = 500
 RECENT_FRAMES = 20000  # frames the live 1 % low is taken over (a few minutes): sorting a whole evening is too slow
 GPU_WINDOW = 600      # frames the live GPU share is taken over
@@ -182,17 +187,27 @@ class Run:
         self.events = []
         self.dropped = 0          # events beyond MAX_EVENTS
         self.seen = time.monotonic()  # when the last frame arrived
+        self.drawn = 0            # every frame, loading and pauses included: which run is the game
         self._sum = 0.0
         self._recent = deque(maxlen=HITCH_WINDOW)
         self._gpu = deque(maxlen=GPU_WINDOW)  # (GPU busy, frame time) of the last frames
         self._median = None
         self._since = 0
         self._n, self._acc, self._acc_at = 0, 0.0, 0.0
+        self._loading = True      # the run may still be loading: see LOAD_MS
+        self._load_end = 0.0      # when the last loading frame ended
+        self._load_secs = 0       # leading entries of secs that were loading
 
     def add(self, ms, gpu=None):
         at = self.t
         self.t += ms / 1000
         self.seen = time.monotonic()
+        self.drawn += 1
+        if self._loading and (at - self._load_end > LOAD_GAP_S or at > LOAD_MAX_S):
+            self._loading = False
+        if self._loading and ms >= LOAD_MS:
+            self._load(ms)
+            return
         if ms >= PAUSE_MS:
             self._mark("pause", at, ms)
             self._recent.clear()
@@ -220,6 +235,25 @@ class Run:
         if self._since >= HITCH_REFRESH:
             self._median, self._since = statistics.median(self._recent), 0
 
+    def _load(self, ms):
+        """Everything so far was loading: one event replaces its hitches and pauses, and its frames leave the
+        statistics. The per-second rates stay for the chart but are skipped by min, max and dips."""
+        before = self.events[0] if self.events and self.events[0]["kind"] == "loading" else None
+        self.events = [{"kind": "loading", "at": 0.0, "end": self.t, "frames": before["frames"] + 1 if before else 1,
+                        "worst": max(ms, before["worst"]) if before else ms}]
+        self.dropped = 0
+        del self.ms[:]
+        self._sum = self.gpu_ms = self.gpu_of = 0.0
+        self._load_secs = len(self.secs)
+        self._n, self._acc = 0, 0.0
+        self._recent.clear()
+        self._median, self._since = None, 0
+        self._load_end = self.t
+
+    def _played(self):
+        """(secs, sec_at) after loading."""
+        return self.secs[self._load_secs:], self.sec_at[self._load_secs:]
+
     def _mark(self, kind, at, ms):
         last = self.events[-1] if self.events else None
         if kind == "hitch" and last and last["kind"] == "hitch" and at - last["end"] <= HITCH_GAP_S:
@@ -240,11 +274,12 @@ class Run:
         if not n:
             return None
         gpu_of = sum(ms for _, ms in self._gpu)
+        secs, _ = self._played()
         return {
             "app": self.app, "pid": self.pid, "frames": n, "seconds": round(self.t, 1),
             "now": self.now(), "fps": round(1000 * n / self._sum, 1),
-            "min": round(min(self.secs), 1) if self.secs else None,
-            "max": round(max(self.secs), 1) if self.secs else None,
+            "min": round(min(secs), 1) if secs else None,
+            "max": round(max(secs), 1) if secs else None,
             "low1": round(low(sorted(self.ms[-RECENT_FRAMES:], reverse=True), 0.01), 1),
             "ms": round(statistics.median(self._recent), 1) if self._recent else None,
             "gpuNow": round(sum(g for g, _ in self._gpu) / gpu_of, 3) if gpu_of else None,
@@ -258,15 +293,16 @@ class Run:
             return None
         worst = sorted(self.ms, reverse=True)
         series, step = thin(self.secs, SERIES_MAX)
+        secs, sec_at = self._played()
         return {
             "app": self.app, "pid": self.pid, "frames": n, "seconds": round(self.t, 1),
             "fps": round(1000 * n / self._sum, 1),
-            "min": round(min(self.secs), 1) if self.secs else None,
-            "max": round(max(self.secs), 1) if self.secs else None,
+            "min": round(min(secs), 1) if secs else None,
+            "max": round(max(secs), 1) if secs else None,
             "low1": round(low(worst, 0.01), 1), "low01": round(low(worst, 0.001), 1),
             "worstMs": round(worst[0], 1),
             "gpuBusy": round(self.gpu_ms / self.gpu_of, 3) if self.gpu_of else None,
-            "events": sorted([_event(e) for e in self.events] + dips(self.secs, self.sec_at), key=lambda e: e["at"]),
+            "events": sorted([_event(e) for e in self.events] + dips(secs, sec_at), key=lambda e: e["at"]),
             "eventsDropped": self.dropped,
             "series": series, "seriesStep": step,
         }
@@ -335,7 +371,7 @@ class Tracker:
     def busiest(self):
         """The run with the most frames: the game, unless something else is drawing more."""
         with self._lock:
-            return max(self.runs.values(), key=lambda r: len(r.ms), default=None)
+            return max(self.runs.values(), key=lambda r: r.drawn, default=None)
 
     def summary(self):
         run = self.busiest()
@@ -343,7 +379,7 @@ class Tracker:
             return run.summary() if run else None
 
     def _of(self, pid):
-        return max((r for r in self.runs.values() if r.pid == pid), key=lambda r: len(r.ms), default=None)
+        return max((r for r in self.runs.values() if r.pid == pid), key=lambda r: r.drawn, default=None)
 
     def seen(self, pid):
         """When the last frame of this process arrived (time.monotonic()), or None if it never drew anything."""

@@ -86,7 +86,7 @@ function drawFps(c, values, o = {}) {
   }
   (o.marks || []).forEach(m => {
     const a = px(m.i0), b = Math.max(a + 2, px(m.i1));
-    x.globalAlpha = m.kind === 'hitch' ? .7 : .16; x.fillStyle = css(m.kind === 'pause' ? '--mute' : m.kind === 'dip' ? '--bad' : '--warn');
+    x.globalAlpha = m.kind === 'hitch' ? .7 : .16; x.fillStyle = css(m.kind === 'pause' || m.kind === 'loading' ? '--mute' : m.kind === 'dip' ? '--bad' : '--warn');
     x.fillRect(a, T, m.kind === 'hitch' ? 2 : b - a, B - T); x.globalAlpha = 1;
   });
   if (o.target && o.target < top) {
@@ -132,6 +132,7 @@ function metersHTML(d, hw) {
 }
 function eventHTML(e) {
   const [icon, text] = e.kind === 'pause' ? ['pause', t('Paused or loading for {s} s', { s: n0(e.seconds) })]
+    : e.kind === 'loading' ? ['pause', t('Starting up for {s} s, not counted', { s: n0(e.seconds) })]
     : e.kind === 'dip' ? ['alert', t('{s} s at about {fps} fps', { s: n0(e.seconds), fps: n0(e.fps) })]
     : e.frames > 1 ? ['bolt', t('{n} slow frames, the worst took {ms} ms', { n: fmtInt(e.frames), ms: n0(e.worst) })]
     : ['bolt', t('One slow frame of {ms} ms', { ms: n0(e.worst) })];

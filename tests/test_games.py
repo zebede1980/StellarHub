@@ -71,10 +71,27 @@ class RunTest(unittest.TestCase):
         self.assertEqual(run_of([6.0] * 200 + [18.0] + [6.0] * 200).summary()["events"], [])     # under 16 ms more
 
     def test_a_pause_is_listed_but_kept_out_of_the_statistics(self):
-        s = run_of([10.0] * 300 + [5000.0] + [10.0] * 300).summary()
+        s = run_of([10.0] * 3500 + [5000.0] + [10.0] * 300).summary()  # after the start: not loading
         (e,) = s["events"]
-        self.assertEqual((e["kind"], e["at"], e["seconds"]), ("pause", 3.0, 5.0))
-        self.assertEqual((s["fps"], s["low01"], s["frames"], s["seconds"]), (100.0, 100.0, 600, 11.0))
+        self.assertEqual((e["kind"], e["at"], e["seconds"]), ("pause", 35.0, 5.0))
+        self.assertEqual((s["fps"], s["low01"], s["frames"], s["seconds"]), (100.0, 100.0, 3800, 43.0))
+
+    def test_the_start_up_is_one_loading_event_kept_out_of_the_statistics(self):
+        s = run_of([10.0] * 500 + [80.0]            # a hitch at 5 s...
+                   + [10.0] * 500 + [5000.0]        # ...a loading screen at 10 s...
+                   + [10.0] * 1000 + [400.0]        # ...and a stall 10 s after it: all of it was loading
+                   + [10.0] * 4000 + [120.0]        # 40 s later the game is being played: a hitch
+                   + [10.0] * 200 + [300.0]         # and a long frame now is a hitch too, not loading
+                   + [10.0] * 200).summary()
+        load, a, b = s["events"]
+        self.assertEqual((load["kind"], load["at"], load["seconds"], load["frames"]), ("loading", 0.0, 25.48, 2))
+        self.assertEqual([(e["kind"], e["at"]) for e in (a, b)], [("hitch", 65.5), ("hitch", 67.6)])
+        self.assertEqual((s["frames"], s["worstMs"], s["min"]), (4402, 300.0, 71.0))  # not the 61 fps second of loading
+
+    def test_loading_does_not_last_all_evening(self):
+        s = run_of(([10.0] * 1900 + [1000.0]) * 10 + [10.0] * 100).summary()  # a pause every 20 s
+        self.assertEqual([(e["kind"], round(e["at"])) for e in s["events"]], [("loading", 0), ("pause", 199)])
+        self.assertEqual(s["events"][0]["frames"], 9)
 
     def test_a_dip_needs_three_slow_seconds(self):
         two = run_of([10.0] * 1000 + [20.0] * 100 + [10.0] * 1000).summary()   # 2 s at half the frame rate
@@ -89,7 +106,8 @@ class RunTest(unittest.TestCase):
         self.assertIsNone(run_of([10.0] * 100).summary()["gpuBusy"])
 
     def test_events_are_capped(self):
-        r = run_of(([10.0] * 150 + [5000.0]) * (G.MAX_EVENTS + 5))
+        with mock.patch.object(G, "LOAD_GAP_S", 0):  # or the first pauses are the game loading
+            r = run_of(([10.0] * 150 + [5000.0]) * (G.MAX_EVENTS + 5))
         self.assertEqual((len(r.events), r.dropped), (G.MAX_EVENTS, 5))
 
     def test_nothing_measured(self):
@@ -143,6 +161,14 @@ class TrackerTest(unittest.TestCase):
         self.assertEqual(t.busiest().app, "game.exe")
         self.assertEqual(t.summary()["frames"], 200)
         self.assertIsNone(G.Tracker().summary())
+
+    def test_a_game_that_has_just_loaded_is_still_the_busiest(self):
+        t = G.Tracker()
+        for ms in [10.0] * 300 + [400.0] + [10.0] * 5:  # loading: its first 300 frames leave the statistics
+            t.add(G.Frame("game.exe", 2, "0x1", ms, None))
+        for _ in range(100):
+            t.add(G.Frame("launcher.exe", 3, "0x1", 16.6, None))
+        self.assertEqual((t.busiest().app, t.summary()["frames"]), ("game.exe", 5))
 
     def test_unnamed_processes_are_looked_up_once(self):
         names = {7: "dwm.exe", 8: "game.exe"}
