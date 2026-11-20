@@ -51,7 +51,7 @@ SESSION = "StellarHubGames"  # the ETW session name: PresentMon's own app keeps 
 
 PAUSE_MS = 1000.0     # a frame this long is a loading screen or an alt-tab, not a slow frame
 HITCH_RATIO = 2.5     # a frame this many times longer than the recent median...
-HITCH_MIN_MS = 8.0    # ...and at least this much longer, is a hitch
+HITCH_MIN_MS = 16.0   # ...and at least this much longer (a 60 Hz refresh: less is not felt), is a hitch
 HITCH_WINDOW = 120    # frames the median is taken over
 HITCH_REFRESH = 30    # frames between two medians
 HITCH_GAP_S = 1.0     # hitches closer than this are one event

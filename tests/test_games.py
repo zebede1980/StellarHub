@@ -68,7 +68,7 @@ class RunTest(unittest.TestCase):
 
     def test_a_slightly_slow_frame_is_not_a_hitch(self):
         self.assertEqual(run_of([10.0] * 200 + [17.0] + [10.0] * 200).summary()["events"], [])  # under 2.5x
-        self.assertEqual(run_of([2.0] * 200 + [9.0] + [2.0] * 200).summary()["events"], [])     # under 8 ms more
+        self.assertEqual(run_of([6.0] * 200 + [18.0] + [6.0] * 200).summary()["events"], [])     # under 16 ms more
 
     def test_a_pause_is_listed_but_kept_out_of_the_statistics(self):
         s = run_of([10.0] * 300 + [5000.0] + [10.0] * 300).summary()
