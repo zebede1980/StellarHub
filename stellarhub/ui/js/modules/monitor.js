@@ -165,7 +165,10 @@ const PROCS = [
   { n: 'Realtek Audio Console', exe: 'RtkAudUService64.exe', k: 1, cpu: .1, ram: 18, gpu: 0, disk: 0, net: 0, path: 'C:\\Windows\\System32\\DriverStore' },
   { n: 'Armoury Crate', exe: 'ArmouryCrate.exe', k: 3, cpu: .4, ram: 210, gpu: 0, disk: .1, net: .1, path: 'C:\\Program Files\\ASUS\\ARMOURY CRATE Service' },
 ];
-PROCS.forEach((p, i) => { p.id = i; p.b = { cpu: p.cpu, ram: p.ram, gpu: p.gpu, disk: p.disk, net: p.net }; p.alive = true; });
+/* sample dedicated video memory in MB (the rest of the sample VRAM is the driver's and Windows' own) */
+const MOCK_VRAM = { 'brave.exe': 640, 'FL64.exe': 180, 'Discord.exe': 150, 'Spotify.exe': 90, 'claude.exe': 120, 'pythonw.exe': 170, 'wallpaper64.exe': 430,
+  'Medal.exe': 260, 'explorer.exe': 150, 'dwm.exe': 410, 'steam.exe': 70, 'WindowsTerminal.exe': 60, 'SearchHost.exe': 40 };
+PROCS.forEach((p, i) => { p.id = i; p.vram = MOCK_VRAM[p.exe] || 0; p.b = { cpu: p.cpu, ram: p.ram, gpu: p.gpu, vram: p.vram, disk: p.disk, net: p.net }; p.alive = true; });
 /* peak temperatures this session (real data only; sample values in sample mode) */
 const MAXT = { cpu: null, gpu: null, ssd: null, cpuAt: 0, gpuAt: 0 };
 const SUM = { cpu: PROCS.reduce((s, p) => s + p.b.cpu, 0), gpu: PROCS.reduce((s, p) => s + p.b.gpu, 0) };
@@ -181,7 +184,7 @@ function simTick(v) {
   const load = Math.max(.15, v.cpu * .9 / SUM.cpu), gl = Math.max(.05, v.gpu * .9 / SUM.gpu); /* the processes share the real total */
   PROCS.forEach(p => {
     if (!p.alive) return;
-    p.cpu = jit(p.b.cpu * load, .8); p.ram = jit(p.b.ram, .06, 4); p.gpu = jit(p.b.gpu * gl, .9);
+    p.cpu = jit(p.b.cpu * load, .8); p.ram = jit(p.b.ram, .06, 4); p.gpu = jit(p.b.gpu * gl, .9); p.vram = jit(p.b.vram, .05);
     p.disk = Math.random() < .2 ? jit(p.b.disk * 4, 1) : jit(p.b.disk, 1); p.net = jit(p.b.net * (v.down / 12), 1);
   });
   extra.diskTemp = Math.max(34, Math.min(66, extra.diskTemp + (Math.random() - .5) * 1.2 + (v.diskRead + v.diskWrite > 400 ? .8 : -.15)));
@@ -204,7 +207,7 @@ async function pollProcs() {
     r.list.forEach(g => {
       let p = RP.get(g.key);
       if (!p) { p = { id: g.key, alive: true }; RP.set(g.key, p); }
-      Object.assign(p, { n: g.n, exe: g.exe, k: g.k, cpu: g.cpu, ram: g.ram, gpu: g.gpu, disk: g.disk, net: g.net, path: g.path, sys: g.sys || g.own, own: g.own, alive: true });
+      Object.assign(p, { n: g.n, exe: g.exe, k: g.k, cpu: g.cpu, ram: g.ram, gpu: g.gpu, vram: g.vram, disk: g.disk, net: g.net, path: g.path, sys: g.sys || g.own, own: g.own, alive: true });
       if ('icon' in g) { p.icon = g.icon; p.iconDone = true; }
       seen.add(g.key);
     });
@@ -346,12 +349,16 @@ R.gpu = (el, t) => {
           <div class="st"><span class="sl">${_t('Fan')}</span><b>${fanIc('gFan')}<span id="gFn">–</span><small id="gFnU">%</small></b><span class="ss" id="gFnW"></span></div></div></div>
           <div class="vram"><span>${_t('Video memory')}</span><b>${_t('{used} of {total} GB', { used: '<span id="gV">–</span>', total: '<span id="gVT">–</span>' })}</b><div class="bar acc"><span id="gVB"></span></div></div></div>
         <div class="gr"><div class="legend"><span><i style="background:var(--accent)"></i>${_t('usage')}</span><span><i class="dash" style="border-color:var(--accent2)"></i>${_t('temperature')}</span></div>
-          <div class="chwrap">${cv('gCh')}</div>${axis}</div></div>
+          <div class="chwrap">${cv('gCh')}</div>
+          <div class="legend gmleg"><span><i style="background:var(--accent)"></i>${_t('video memory')}</span></div>
+          <div class="chwrap">${cv('gMCh')}</div>${axis}</div></div>
       <p class="mnote gstate" id="gState" hidden></p></div>
     <div class="pan" data-asm>${head(esc(short(igpu) || _t('Integrated graphics')), _tc('integrated'))}
       ${igpu ? `<div class="igu"><div class="big"><span id="gI">–</span><small>%</small></div><div class="chwrap sm">${cv('gICh')}</div></div>` : ''}
       <p class="mnote">${igpu ? _t('Drives the laptop screen and saves battery. The dedicated GPU kicks in when a program asks for it.') : _t('This PC has no active integrated graphics.')}</p></div>
-    <div class="pan" data-asm>${head(_t('Using the GPU'), procInfo.gpuPerProcess === false ? _t('not available') : '')}<div class="tops" id="gTop"></div></div>
+    <div class="pan" data-asm>${head(_t('Using the GPU'), procInfo.gpuPerProcess === false ? _t('not available') : '')}
+      <div class="seg gseg" id="gTopSeg"><span class="ind"></span><button data-v="gpu" class="on">${_t('Usage')}</button><button data-v="vram"${procInfo.vramPerProcess === false ? ' disabled' : ''}>${_t('Video memory')}</button></div>
+      <div class="tops" id="gTop"></div><div class="tops" id="gTopM" hidden></div></div>
     <div class="pan" data-asm>${head(_t('Displays'), `${mons.length || '–'}`)}<div class="rows">
       ${mons.map(m => `<div class="row"><span class="ri">${ic('display')}</span><span class="rt"><b>${m.internal ? _t('Laptop screen') : _t('External monitor')}</b><span>${esc([m.vendor, m.name || m.code].filter(Boolean).join(' '))}${m.inches ? `, ${m.inches}"` : ''}</span></span><span class="chip ok">${_t('active')}</span></div>`).join('') || `<div class="muted">${_t('No display data.')}</div>`}</div></div>
     <div class="pan" data-asm>${head(_t('Specifications'))}<dl class="spec" id="gSpec">
@@ -367,7 +374,16 @@ R.gpu = (el, t) => {
   if (S(el, 'gI')) { num(t, S(el, 'gI'), v => v.igpu); chart(t, S(el, 'gICh'), { series: [{ key: 'igpu', col: 'accent2', fill: true, label: _t('Usage') }] }); }
   num(t, S(el, 'gV'), v => v.vram, fmt1); num(t, S(el, 'gVT'), v => v.vramTotal); bar(t, S(el, 'gVB'), v => v.vram / (v.vramTotal || 8));
   chart(t, S(el, 'gCh'), { series: [{ key: 'gpu', col: 'accent', fill: true, label: _t('Usage') }, { key: 'gpuTemp', col: 'accent2', dash: [5, 4], w: 1.5, label: _tc('Temp.'), unit: ' °C', opt: true }] });
+  const mch = chart(t, S(el, 'gMCh'), { max: V().vramTotal || 8, unit: ' GB', dec: 1, series: [{ key: 'vram', col: 'accent', fill: true, label: _t('Video memory'), opt: true }] });
+  fn(t, v => { if (v.vramTotal) mch.o.max = v.vramTotal; });
   topList(t, S(el, 'gTop'), 'gpu', 6, pct, 0);
+  topList(t, S(el, 'gTopM'), 'vram', 6, mb, 0);
+  const tseg = S(el, 'gTopSeg');
+  tseg.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b || b.disabled || b.classList.contains('on')) return;
+    $$('button', tseg).forEach(x => x.classList.toggle('on', x === b)); SH.placeSeg(tseg);
+    S(el, 'gTop').hidden = b.dataset.v !== 'gpu'; S(el, 'gTopM').hidden = b.dataset.v !== 'vram';
+  });
   load('gpu', 'gpu_info').then(gi => {
     if (!gi || !gi.driver) return; /* {asleep:true} with nothing cached: the GPU was not woken up to read it */
     S(el, 'gDrv').textContent = gi.driver;

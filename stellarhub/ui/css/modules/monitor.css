@@ -291,6 +291,10 @@ html[data-int=min] #v-monitor .batt .bolt{animation:none}
 #v-monitor .gpuhero{gap:20px}
 #v-monitor .gpuhero .stats.s4{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px}
 #v-monitor .g-gpu .vram{margin-top:14px}
+#v-monitor .gsplit .gr .gmleg{margin-top:10px;padding-bottom:0}
+#v-monitor .gseg{margin-top:4px}
+#v-monitor .gseg button{height:28px}
+#v-monitor .gseg button:disabled{opacity:.45;cursor:default}
 
 /* memory and disks: the chart fills the large panel */
 #v-monitor .g-mem .stats,#v-monitor .g-disk .stats{align-content:space-around}

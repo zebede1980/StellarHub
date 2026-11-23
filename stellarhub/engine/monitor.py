@@ -195,12 +195,13 @@ class _PdhArray:
 _pdh = None
 PDH_PATHS = {"pid": r"\Process(*)\ID Process", "cpu": r"\Process(*)\% Processor Time",
              "ram": r"\Process(*)\Working Set - Private", "io": r"\Process(*)\IO Data Bytes/sec",
-             "gpu": r"\GPU Engine(*)\Utilization Percentage"}
+             "gpu": r"\GPU Engine(*)\Utilization Percentage", "vram": r"\GPU Process Memory(*)\Dedicated Usage"}
 
 
 def processes(known=None):
     """Processes grouped by program (like Task Manager), read in one go with Windows performance counters:
-    CPU in % of the total, private RAM in MB, disk in MB/s, GPU in %, network = open connections.
+    CPU in % of the total, private RAM in MB, disk in MB/s, GPU in %, dedicated video memory in MB,
+    network = open connections.
     The icon is only sent for programs the interface does not know yet (`known`)."""
     global _pdh
     known = set(known or [])
@@ -209,7 +210,7 @@ def processes(known=None):
             _pdh = _PdhArray(PDH_PATHS)
             time.sleep(0.25)
         if not _pdh.collect():
-            return {"list": [], "total": 0, "gpuPerProcess": False, "admin": _admin(), "error": "counters not available"}
+            return {"list": [], "total": 0, "gpuPerProcess": False, "vramPerProcess": False, "admin": _admin(), "error": "counters not available"}
         ncpu = psutil.cpu_count() or 1
         # NOTE: processes with the same name (svchost, chrome...) come with the SAME instance name, without "#n".
         # The lists of all counters come in the same order: they are paired by position, not by name.
@@ -232,6 +233,12 @@ def processes(known=None):
             if m:
                 pid = int(m.group(1))
                 gpu[pid] = max(gpu.get(pid, 0.0), v)
+        vram = {}
+        for name, v in _pdh.array("vram"):  # one instance per process and adapter: summed
+            m = re.match(r"pid_(\d+)_", name)
+            if m:
+                pid = int(m.group(1))
+                vram[pid] = vram.get(pid, 0.0) + v
         conns = {}
         try:
             for c in psutil.net_connections("inet"):
@@ -260,13 +267,14 @@ def processes(known=None):
                 where = exe or _find_exe(name)  # protected processes: only for the description and the icon
                 desc = _file_desc(where) if where and (where in _desc_cache or time.monotonic() - t0 < 1.0) else None
                 g = groups[key] = {"key": key, "n": desc or os.path.splitext(name)[0], "exe": name, "path": exe, "sys": bool(system),
-                                   "k": 0, "pids": [], "cpu": 0.0, "ram": 0.0, "gpu": 0.0, "disk": 0.0, "net": 0}
+                                   "k": 0, "pids": [], "cpu": 0.0, "ram": 0.0, "gpu": 0.0, "vram": 0.0, "disk": 0.0, "net": 0}
             g["k"] += 1
             g["pids"].append(pid)
             g["cpu"] += vals["cpu"].get(pid, 0.0) / ncpu
             g["ram"] += vals["ram"].get(pid, 0.0) / MB
             g["disk"] += vals["io"].get(pid, 0.0) / MB
             g["gpu"] = max(g["gpu"], min(100.0, gpu.get(pid, 0.0)))
+            g["vram"] += vram.get(pid, 0.0) / MB
             g["net"] += conns.get(pid, 0)
         for pid in list(_static):
             if pid not in alive:
@@ -275,13 +283,14 @@ def processes(known=None):
         t_icons = time.monotonic()
         for g in sorted(groups.values(), key=lambda g: -g["ram"]):
             g["cpu"], g["ram"], g["gpu"], g["disk"] = round(min(100, g["cpu"]), 2), round(g["ram"], 1), round(g["gpu"], 1), round(g["disk"], 2)
+            g["vram"] = round(g["vram"], 1)
             if g["key"] not in known:
                 if not g["path"] or g["path"] in _icon_cache or time.monotonic() - t_icons < ICON_BUDGET:
                     g["icon"] = _proc_icon(g["exe"], g["path"], g["sys"])  # no time left: not sent, the interface asks again
             if OWN in g["pids"]:
                 g["own"] = True
             out.append(g)
-        return {"list": out, "total": len(alive), "gpuPerProcess": "gpu" in _pdh.c, "admin": _admin()}
+        return {"list": out, "total": len(alive), "gpuPerProcess": "gpu" in _pdh.c, "vramPerProcess": "vram" in _pdh.c, "admin": _admin()}
 
 
 def icons(specs, budget=1.5):
